@@ -1,0 +1,25 @@
+{
+  "name": "publishing-house",
+  "version": "1.0.0",
+  "description": "Complete Publishing House Management System",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"pnpm run server\" \"pnpm run client\"",
+    "server": "cd server && pnpm run dev",
+    "client": "cd client && pnpm run dev",
+    "setup": "cd server && pnpm run setup-db",
+    "install:all": "pnpm install && cd client && pnpm install && cd ../server && pnpm install",
+    "build": "cd client && pnpm run build",
+    "start": "cd server && pnpm run start"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "dependencies": {
+    "firebase": "^12.12.1"
+  }
+}

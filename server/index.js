@@ -20,13 +20,13 @@ const customerRoutes = require("./routes/customer");
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-// IMPORTANT: CORS must be first
+// ==========================================
+// 1. CORS CONFIGURATION
+// ==========================================
+// Updated to allow your production Render URL as well as localhost
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "https://bookself-cxsx.onrender.com", // <-- Add your Render URL here
-    ],
+    origin: ["http://localhost:5173", "https://bookself-cxsx.onrender.com"],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: [
@@ -46,10 +46,12 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Static files
+// Static files for uploads
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// Session configuration - FIXED
+// ==========================================
+// 2. SESSION CONFIGURATION
+// ==========================================
 app.use(
   session({
     store: new pgSession({
@@ -62,28 +64,28 @@ app.use(
       process.env.SESSION_SECRET ||
       "your-secret-key-change-this-to-something-secure",
     resave: false,
-    saveUninitialized: false, // Important: false to avoid creating empty sessions
-    name: "connect.sid", // Use default name for better compatibility
+    saveUninitialized: false,
+    name: "connect.sid",
     cookie: {
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
       httpOnly: true,
-      secure: false, // false for development (HTTP)
-      sameSite: "lax", // Required for cross-origin requests
+      secure: process.env.NODE_ENV === "production", // true on Render, false locally
+      sameSite: "lax",
       path: "/",
     },
-    rolling: true, // Reset cookie maxAge on each response
+    rolling: true,
   }),
 );
 
 // Request logging middleware
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
-  console.log("Session ID:", req.sessionID);
-  console.log("Session data:", req.session);
-  next();
+  next(); // Removed excessive session logging to keep Render logs clean
 });
 
-// Health check endpoint
+// ==========================================
+// 3. API ROUTES & HEALTH CHECKS
+// ==========================================
 app.get("/health", (req, res) => {
   res.json({
     status: "healthy",
@@ -92,7 +94,6 @@ app.get("/health", (req, res) => {
   });
 });
 
-// Debug session endpoint
 app.get("/api/debug/session", (req, res) => {
   res.json({
     sessionID: req.sessionID,
@@ -104,7 +105,6 @@ app.get("/api/debug/session", (req, res) => {
   });
 });
 
-// API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/articles", articleRoutes);
 app.use("/api/orders", orderRoutes);
@@ -112,12 +112,30 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/customer", customerRoutes);
 
-// 404 handler
-app.use("*", (req, res) => {
-  res.status(404).json({ error: "Route not found" });
+// ==========================================
+// 4. SERVE REACT FRONTEND (Production)
+// ==========================================
+// This points to the 'dist' folder created when you run 'pnpm run build' in the client
+const clientBuildPath = path.join(__dirname, "../client/dist");
+
+// Serve static files (JS, CSS, images) from the React build
+app.use(express.static(clientBuildPath));
+
+// Catch-all route: Send index.html for any route not caught by API or static files
+// This allows React Router to handle client-side routing (e.g., /login, /dashboard)
+app.get("*", (req, res) => {
+  // If it's an API route that wasn't caught, return a JSON 404
+  if (req.path.startsWith("/api") || req.path.startsWith("/health")) {
+    return res.status(404).json({ error: "Route not found" });
+  }
+
+  // Otherwise, serve the React app
+  res.sendFile(path.join(clientBuildPath, "index.html"));
 });
 
-// Error handling middleware
+// ==========================================
+// 5. ERROR HANDLING (Must be last)
+// ==========================================
 app.use((err, req, res, next) => {
   console.error("Error:", err.stack);
   res.status(500).json({
@@ -126,7 +144,9 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Function to create tables if they don't exist
+// ==========================================
+// 6. DATABASE INITIALIZATION
+// ==========================================
 async function initializeDatabase() {
   try {
     console.log("🔄 Checking database tables...");
@@ -139,7 +159,6 @@ async function initializeDatabase() {
     await pool.query(schemaSQL);
     console.log("✅ Database tables verified/created");
 
-    // Create default admin user if not exists
     const bcrypt = require("bcryptjs");
     const hashedPassword = await bcrypt.hash("admin1203", 10);
 
@@ -153,7 +172,6 @@ async function initializeDatabase() {
     );
     console.log("✅ Default admin user ready (admin@123gmail.com / admin1203)");
 
-    // Insert sample articles if table is empty
     const articleCount = await pool.query(
       "SELECT COUNT(*) as count FROM articles",
     );
@@ -168,7 +186,6 @@ async function initializeDatabase() {
       console.log("✅ Sample articles created");
     }
 
-    // Insert default settings if not exists
     const settingsCount = await pool.query(
       "SELECT COUNT(*) as count FROM settings",
     );
@@ -195,21 +212,19 @@ async function initializeDatabase() {
   }
 }
 
-// Start server
+// ==========================================
+// 7. START SERVER
+// ==========================================
 async function startServer() {
   try {
-    // Test database connection
     await pool.query("SELECT NOW()");
     console.log("✅ Database connected successfully");
 
-    // Initialize tables and data
     await initializeDatabase();
 
-    // Start server
     app.listen(PORT, () => {
       console.log(`\n🚀 Server running on http://localhost:${PORT}`);
       console.log(`📡 Environment: ${process.env.NODE_ENV || "development"}`);
-      console.log(`🔗 CORS enabled for: http://localhost:5173`);
       console.log(`\n📚 Publishing House Management System is ready!`);
       console.log(`🔐 Admin Login: admin@123gmail.com / admin1203\n`);
     });

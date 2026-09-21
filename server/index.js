@@ -23,7 +23,10 @@ const PORT = process.env.PORT || 4000;
 // IMPORTANT: CORS must be first
 app.use(
   cors({
-    origin: "http://localhost:5173", // Explicit origin instead of variable
+    origin: [
+      "http://localhost:5173",
+      "https://bookself-cxsx.onrender.com", // <-- Add your Render URL here
+    ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: [
